@@ -1,0 +1,211 @@
+module SDRAM_Controller (
+
+ input wire clk,
+
+ input wire reset,
+
+ input wire [11:0] address,
+
+ input wire [1:0] command,
+
+ input wire [15:0] data_in,
+
+ output wire [15:0] data_out
+
+);
+
+ // Internal registers
+
+ reg [1:0] state;
+
+ reg [15:0] sdram_data [0:2047];
+
+ reg [15:0] data_reg;
+
+ reg [1:0] burst_counter;
+
+ 
+
+ // SDRAM timing parameters
+
+ parameter tRP = 2; // Row Precharge Time
+
+ parameter tRCD = 2; // Row to Column Delay
+
+ parameter tWR = 2; // Write Recovery Time
+
+ parameter tRFC = 3; // Refresh Cycle Time
+
+ 
+
+ // Controller states
+
+ parameter IDLE = 2'b00;
+
+ parameter READ = 2'b01;
+
+ parameter WRITE = 2'b10;
+
+ parameter PRECHARGE = 2'b11;
+
+ 
+
+ // State machine
+
+ always @(posedge clk or posedge reset) begin
+
+ if (reset) begin
+
+ state <= IDLE;
+
+ burst_counter <= 2'b00;
+
+ end else begin
+
+ case(state)
+
+ IDLE: begin
+
+ if (command == 2'b00) begin
+
+ state <= READ;
+
+ burst_counter <= 2'b01;
+
+ end else if (command == 2'b01) begin
+
+ state <= WRITE;
+
+ burst_counter <= 2'b01;
+end else if (command == 2'b10) begin
+
+ state <= PRECHARGE;
+
+ end
+
+ end
+
+ 
+
+ READ: begin
+
+ if (burst_counter == 2'b00) begin
+
+ state <= IDLE;
+
+ end else begin
+
+ burst_counter <= burst_counter - 1;
+
+ end
+
+ end
+
+ 
+
+ WRITE: begin
+
+ if (burst_counter == 2'b00) begin
+
+ state <= IDLE;
+
+ end else begin
+
+ burst_counter <= burst_counter - 1;
+
+ end
+
+ end
+
+ 
+
+ PRECHARGE: begin
+
+ state <= IDLE;
+
+ end
+
+ endcase
+
+ end
+
+ end
+
+ 
+
+ // SDRAM Read/Write logic
+
+ always @(posedge clk or posedge reset) begin
+
+ if (reset) begin
+
+ data_reg <= 16'b0;
+
+ end else begin
+
+ case(state)
+
+ READ: begin
+
+ if (burst_counter != 2'b00) begin
+
+ data_reg <= sdram_data[address];
+
+ end
+
+ end
+
+ 
+
+ WRITE: begin
+if (burst_counter != 2'b00) begin
+
+ sdram_data[address] <= data_in;
+
+ end
+
+ end
+
+ endcase
+
+ end
+
+ end
+
+ 
+
+ // Output multiplexer
+
+ always @(state or data_reg) begin
+
+ case(state)
+
+ IDLE: begin
+
+ data_out <= 16'b0;
+
+ end
+
+ 
+
+ READ, WRITE: begin
+
+ data_out <= data_reg;
+
+ end
+
+ 
+
+ PRECHARGE: begin
+
+ data_out <= 16'bZ;
+
+ end
+
+ endcase
+
+ end
+
+ 
+
+endmodule
